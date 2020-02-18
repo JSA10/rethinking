@@ -1,6 +1,11 @@
 
 # rethinking regression ---------------------------------------------------
 
+## R code 4.7
+library(rethinking)
+data(Howell1)
+d <- Howell1
+
 #rethinking EDA
 
 dens(d$height)
@@ -13,7 +18,10 @@ dens(d$height)
 # 2 - just because a variable doesn't look normal, it doesn't mean you can't use the model
 # MORE ON 4.3 page 83
 
-# DEFINE the model 
+
+# DEFINE the model  -------------------------------------------------------
+
+
 
 # h1 ~ Normal(mu, sigma)
 
@@ -60,7 +68,10 @@ would imply that 95% of individual heights lie within 100cm of the average heigh
 That’s a very large range.
 """
 
-# PRIOR PREDICTIVE SIMULATION
+
+# PRIOR PREDICTIVE SIMULATION ---------------------------------------------
+
+
 # now to see what these priors imply about the distribution of individual heights 
 
 # Priors for h, μ, and σ imply a joint prior distribution of individual heights
@@ -85,6 +96,10 @@ dens( prior_h )
 # become an adult 
 
 d2 <- d[ d$age >= 18 , ]
+
+
+# Grid approximation ------------------------------------------------------
+
 
 # R code 4.16
 # grid approximation 
@@ -127,4 +142,90 @@ dens( sample.sigma )
 ## R code 4.22
 HPDI( sample.mu )
 HPDI( sample.sigma )
+
+
+
+# Finding posterior with quap ---------------------------------------------
+
+# Move onto quadratic approximation = one of great engines of applied statistics 
+
+# Why? 
+#   Handy way to quickly make inferences about shape of the posterior 
+#   Posteriors peak will lie at the maximum a posteriori estimate (MAP) - we can 
+#   visualise the posteriors shape using quap at this peak 
+
+# quap - rethinking command takes model definition as a list and the engine 
+# computes the posterior probability at each combination of parameter values 
+# it can then 'climb' this posterior dist to find the peak - the MAP 
+# FINALLY it estimate the quadratic curvature are this peak to produce approximation 
+# of the posterior distribution 
+# 
+#NOTE - very similar to non-bayesian applications, just with priors 
+
+library(rethinking)
+data(Howell1)
+d <- Howell1
+d2 <- d[ d$age >= 18 , ]
+
+
+## R code 4.27
+## DEFINE THE MODEL using R's formula syntax 
+flist <- alist(
+    height ~ dnorm( mu , sigma ) ,
+    mu ~ dnorm( 178 , 20 ) ,
+    sigma ~ dunif( 0 , 50 )
+)
+# note the commas at end of each line, apart fromm the last
+
+# fit the model to the data 
+m4.1 <- quap( flist , data=d2 )
+
+precis(m4.1)
+"""
+        mean   sd   5.5%  94.5%
+mu    154.61 0.41 153.95 155.27
+sigma   7.73 0.29   7.27   8.20
+"""
+
+"""
+These numbers provide Gaussian approximations for each parameter’s marginal distribution. 
+
+This means the plausibility of each value of μ, after averaging over the plausibilities 
+of each value of σ, is given by a Gaussian distribution with mean 154.6 and standard 
+deviation 0.4.
+"""
+
+#NOTE
+# Can specify where quap starts 'climbing' from rather than using random points 
+
+start <- list(
+    mu=mean(d2$height),
+    sigma=sd(d2$height)
+)
+
+m4.1 <- quap( flist , data=d2 , start=start )
+
+# or change the 89% HDI 
+precis(m4.1, prob = 0.90)
+
+# don't use 95% as someone will compare to significance test - no real justification for 0.95 boundary
+
+# adding a more informaive prior for mu's s.d - change to 0.1 (much tighter than 20) 
+## R code 4.31
+m4.2 <- quap(
+    alist(
+        height ~ dnorm( mu , sigma ) ,
+        mu ~ dnorm( 178 , 0.1 ) ,
+        sigma ~ dunif( 0 , 50 )
+    ) , data=d2 )
+precis( m4.2 )
+# note - estimate for mu is almsot same as the prior 
+# the estimate for sigma changed a lot also, despite us not changing that prior 
+# WHY? Once the golem is certain the mean is 178, then it has to estimate sigma 
+# conditional on that 'fact' 
+
+
+# Sampling from quap ------------------------------------------------------
+
+
 

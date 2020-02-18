@@ -102,6 +102,17 @@ test_q1$expected_height_lm <- predict(m.2, test_q1)
 
 # rethinking this approach ------------------------------------------------
 
+# Using a Bayesian approach we spend a bit more time defining the model 
+
+# height (yi) is normally distributed with mean (mu) and standard deviation (sigma) 
+# yi ~ Normal(mu, sigma)
+
+# In bayesian statistics all model parameters have a distribution 
+# mu = Normal(mu_prior_mean, sigma_prior_mean)
+# sigma ~ uniform(sigma_lower_bound, sigma_upper_bound)
+
+
+
 par(mfrow = c(1,1))
 
 # establishing a prior from experience 
