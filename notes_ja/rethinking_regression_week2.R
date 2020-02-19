@@ -227,5 +227,30 @@ precis( m4.2 )
 
 # Sampling from quap ------------------------------------------------------
 
+# How? 
+# Recognize a quadratic approximation to a posterior distribution with more than 
+# one parameter dimension is just a multi-dimensional gaussian distribution 
+
+# As a consequence R calculates s.d for each paramaters and covariances for
+# pairs of parameters
+
+# Just like a mean and s.d. (or var) are sufficient to describe a 1-d gaussian 
+# distribution, a list of means, and a matrix of variances and covarinaces 
+# are sufficient to describe a multi-d gaussian distribution. 
+
+## R code 4.32
+## variance - covariance matrix 
+vcov( m4.1 )
+
+# slightly easier to understand: 
+
+## R code 4.33
+# 1) a vector of variances for the paramaters
+diag( vcov( m4.1 ) )
+
+#2) a correlation matrix that tells us how changes in any parameter lead to 
+# correlated changes in the others
+cov2cor( vcov( m4.1 ) )
+
 
 
