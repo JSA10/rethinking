@@ -106,6 +106,10 @@ d2 <- d[ d$age >= 18 , ]
 # this technique is impractical in most cases but useful to get a sense for 
 # what we are aiming for with this type of model
 
+# calculations include some technical tricks that add little insight, so just run 
+# for now so get an idea of what posterior looks like when go through quap process 
+# and come back later in an endnote 
+
 mu.list <- seq( from=150, to=160 , length.out=100 )
 sigma.list <- seq( from=7 , to=9 , length.out=100 )
 post <- expand.grid( mu=mu.list , sigma=sigma.list )
@@ -115,20 +119,29 @@ post$prod <- post$LL + dnorm( post$mu , 178 , 20 , TRUE ) +
     dunif( post$sigma , 0 , 50 , TRUE )
 post$prob <- exp( post$prod - max(post$prod) )
 
-# inspect the posterior visually
+par(mfrow = c(1,1))
+
+# inspect the posterior visually as a...
+# ... contour plot
 contour_xyz( post$mu , post$sigma , post$prob )
 
+# ... heat map
 image_xyz( post$mu , post$sigma , post$prob )
 
 
-# sample from the posterior
+
+# Sample from the grid approximation posterior -----------------------------------------------
+
 sample.rows <- sample( 1:nrow(post) , size=1e4 , replace=TRUE ,
                        prob=post$prob )
 
 sample.mu <- post$mu[ sample.rows ]
 sample.sigma <- post$sigma[ sample.rows ]
+# end up with 10,000 samples, with replacement, from the posterior for the height
+# data
 plot( sample.mu , sample.sigma , cex=0.5 , pch=16 , col=col.alpha(rangi2,0.1) )
-
+# col.alpha is part of rethinking package - makes colours transparent which helps
+# to show density 
 
 ## 
 # describe the distribution of confidence in each combination of mu and sigma 
@@ -154,11 +167,12 @@ HPDI( sample.sigma )
 #   Posteriors peak will lie at the maximum a posteriori estimate (MAP) - we can 
 #   visualise the posteriors shape using quap at this peak 
 
-# quap - rethinking command takes model definition as a list and the engine 
-# computes the posterior probability at each combination of parameter values 
-# it can then 'climb' this posterior dist to find the peak - the MAP 
-# FINALLY it estimate the quadratic curvature are this peak to produce approximation 
-# of the posterior distribution 
+# What is quap?
+#   - rethinking command takes model definition as a list and the engine 
+#   computes the posterior probability at each combination of parameter values 
+#   - it can then 'climb' this posterior dist to find the peak - the MAP 
+#   - FINALLY it estimate the quadratic curvature are this peak to produce approximation 
+#   of the posterior distribution 
 # 
 #NOTE - very similar to non-bayesian applications, just with priors 
 
@@ -169,7 +183,7 @@ d2 <- d[ d$age >= 18 , ]
 
 
 ## R code 4.27
-## DEFINE THE MODEL using R's formula syntax 
+## 1) DEFINE THE MODEL using R's formula syntax 
 flist <- alist(
     height ~ dnorm( mu , sigma ) ,
     mu ~ dnorm( 178 , 20 ) ,
@@ -177,7 +191,7 @@ flist <- alist(
 )
 # note the commas at end of each line, apart fromm the last
 
-# fit the model to the data 
+# 2) fit the model to the data 
 m4.1 <- quap( flist , data=d2 )
 
 precis(m4.1)
@@ -241,9 +255,10 @@ precis( m4.2 )
 ## R code 4.32
 ## variance - covariance matrix 
 vcov( m4.1 )
+# tells us how each parameter relates to every other parameter in the posterior 
+# distribution
 
-# slightly easier to understand: 
-
+# although it's slightly easier to understand: 
 ## R code 4.33
 # 1) a vector of variances for the paramaters
 diag( vcov( m4.1 ) )
@@ -253,4 +268,60 @@ diag( vcov( m4.1 ) )
 cov2cor( vcov( m4.1 ) )
 
 
+# getting samples from a multi-dimensional posterior
+# instead of sampling single values from a simple normal distribution, we sample 
+# a vector of values from a multi-dimensional Normal distribution 
+
+# rethinking provides a function to do just that
+library(rethinking)
+post <- extract.samples( m4.1 , n=1e4 )
+head(post)
+"""
+       mu    sigma
+1 154.4616 8.074704
+2 154.3723 7.791929
+3 154.3627 8.333492
+4 154.0810 7.850571
+5 154.7819 7.759078
+6 154.9618 7.891039
+"""
+# end up with a data frame, with 10k rows and 2 cols, one for mu and sigma respectively
+# each value / row is a sample from the posterior, so mean and s.d of each col will 
+# be close to the MAP values from before 
+
+# can confirm by summarising the samples
+precis(post)
+"""
+quap posterior: 10000 samples from m4.1
+        mean   sd   5.5%  94.5%    histogram
+mu    154.60 0.42 153.93 155.28     ▁▁▁▅▇▂▁▁
+sigma   7.73 0.29   7.27   8.19 ▁▁▁▂▅▇▇▃▁▁▁▁
+"""
+
+# compare to grid approximation model
+precis(m4.1)
+"""
+        mean   sd   5.5%  94.5%
+mu    154.61 0.41 153.95 155.27
+sigma   7.73 0.29   7.27   8.20
+"""
+
+# can use plot to see how much they resemble the samples from grid approximation 
+plot(post)
+
+# these samples alsp preserve covariance between mu and sigma 
+
+
+# Linear prediction  ------------------------------------------------------
+
+# This is a Normal model, but doesn't feel like regression 
+# typically we're interested in modeling how an outcome is related to another variable 
+
+# if predictor variable has many statistical associations with the outcome variable 
+# then we can use it to predict the outcome
+
+plot(d2$height, d2$weight)
+# looks to be a broadly linear relationship in adults 
+
+## linear model strategy 
 
