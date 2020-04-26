@@ -86,7 +86,7 @@ plot(d2$height, d2$weight_diff_mean)
 # define the average weight, x-bar
 xbar <- mean(d2$weight)
 
-# define the model 
+# define the model height ~ weight
 mh_w <- quap(
     alist(
         height ~ dnorm( mu , sigma ) ,
@@ -96,6 +96,8 @@ mh_w <- quap(
         sigma ~ dunif( 0 , 50 )
     ) ,
     data=d2 )
+
+?dlnorm
 
 # check model paramaters
 precis(mh_w)
@@ -157,8 +159,6 @@ shade( mu_PI , weights_predict )
 
 # Q2  ---------------------------------------------------------------------
 
-
-
 """
 
 2. Model the relationship between height(cm) and the natural logarithm of weight (log-kg): 
@@ -169,11 +169,164 @@ regression, a polynomial or a spline. Plot the posterior predictions against
 the raw data.
 """
 
+summary(d)
+
+precis(d)
+
+d$log_weight <- log(d$weight)
+
+plot(height ~ log_weight, data = d)
+plot(height ~ weight, data = d)
+
+# log transform looks to have created a more linear relationship with height 
+# 'straigtening out the curve' compared to weight alown 
+# There are stlll clearly two groups as changing weight to its magnitude seems 
+# to have grouped adults together and stretched out the children 
+
+d %>% 
+    ggplot2::ggplot(aes(x = log_weight, y = height)) + 
+    geom_point(aes(colour = age))
+# this effect confirmed and it does make sense as within the adults the difference 
+# heights are more likely to be within a shorter range 
+# e.g. approximately a 1 ft range "5ft 4 to 6ft 4)
+
+# two options for log transforming weight 
+# 
+# 1 ) defining a paramaeter for weight (β) which has a log normal distribution 
+m4.3 <- quap(
+    alist(
+        height ~ dnorm( mu , sigma ) ,
+        mu <- a + b*( weight - xbar ) ,
+        a ~ dnorm( 178 , 20 ) ,
+        b ~ dlnorm( 0 , 1 ) ,
+        sigma ~ dunif( 0 , 50 )
+    ) ,
+    data=d2 )
 
 
+# 2) define a different parameter for weight (log_b) that is transformed back into 
+# weight values within the model, in the definition of mu
+ 
+m4.3b <- quap(
+    alist(
+        height ~ dnorm( mu , sigma ) ,
+        mu <- a + exp(log_b)*( weight - xbar ),
+        a ~ dnorm( 178 , 100 ) ,
+        log_b ~ dnorm( 0 , 1 ) ,
+        sigma ~ dunif( 0 , 50 )
+    ) ,
+    data=d2 )
+
+# these approaches should be equivalent, with the difference visible in the 
+# format of the paramaters for Beta vs. log Beta
+
+precis(m4.3)
+precis(m4.3b)
 
 
+# using the first method with the whole dataset 
 
+
+m_h_w.ln <- quap(
+    alist(
+        height ~ dnorm( mu , sigma ) ,
+        mu <- a + b*( weight - xbar ) ,
+        a ~ dnorm( 178 , 20 ) ,
+        b ~ dlnorm( 0 , 1 ) ,
+        sigma ~ dunif( 0 , 50 )
+    ) ,
+    data=d)
+
+precis(m_h_w.ln)
+# mean of Beta is 1.76 
+# which means that a person 1 kg heavier is expected to be 1.76 cm taller 
+# OR
+# lines with slope around 1.76 are compatible with this data 
+
+# show variance-covariance matrix
+round( vcov( m_h_w.ln ) , 3 )
+# very little covariation, a small amount bwtween alpha and beta (0.007)
+
+# show marginal posteriors and the covariance 
+pairs(m_h_w.ln)
+
+
+# plot the posterior predictions against the raw data.
+
+# important to help interpret the posterior and to informally check in model 
+# assumptions. 
+# -> when model's predictions don't come close to key observations or patterns 
+# in plotted data - suspect model did not fit correctly or is badly specified 
+
+# v1 - start simple with mean predictions in a single line over raw data
+# R code 4.46
+plot( height ~ weight , data=d , col=rangi2 )
+post <- extract.samples( m_h_w.ln )
+a_map <- mean(post$a)
+b_map <- mean(post$b)
+curve( a_map + b_map*(x - xbar) , add=TRUE )
+
+# line fits the orignal data well but shows it might have been worth trying a
+# spline to break the line in two around weight = 25 - 30
+
+# v2 - get some uncertainty onto the plot with precictions for all weight values
+weight.seq <- seq( from=1 , to=70 , by=1 )
+# use rethinking packages link function to get predicted distributions for each weight value
+mu <- link(m_h_w.ln, data=data.frame(weight=weight.seq))
+
+# summarize the distribution of mu - mean and high low interval boundaries 
+mu.mean <- apply( mu , 2 , mean )
+mu.PI <- apply( mu , 2 , PI , prob=0.89 )
+
+# plot raw data
+# fading out points to make line and interval more visible
+plot( height ~ weight , data=d , col=col.alpha(rangi2,0.5) )
+# plot the MAP line, aka the mean mu for each weight
+lines( weight.seq , mu.mean )
+# plot a shaded region for 89% PI
+shade( mu.PI , weight.seq )
+
+# note - the shaded region for the predictions of the mean is very tight, indicating 
+# that the model is very confident about the average value. 
+# 
+# It is worth keeping in mind that these inferences are always conditional on the model 
+# and that even a bad model can have very tight confidence intervals
+
+"""
+It may help to think of the regression line as saying:
+
+- Conditional on the assumption that height and weight are related by a straight
+line, then this is the most plausible line, and these are its plausible bounds.
+"""
+
+# v3 - add prediction intervals for the whole data, not just averages  
+# (adapted example from the book - see r code reference numbers)
+
+# simulate heights 
+## R code 4.59
+sim.height <- sim( m_h_w.ln , data=list(weight=weight.seq) )
+str(sim.height)
+
+# summarise these simulated actual heights the same way we summarised the average heights 
+# for each weight value - below we calculate 89% prediction interval
+## R code 4.60
+height.PI <- apply( sim.height , 2 , PI , prob=0.89 )
+
+## R code 4.61
+# plot raw data
+plot( height ~ weight , d , col=col.alpha(rangi2,0.5) )
+
+# draw MAP line
+lines( weight.seq , mu.mean )
+
+# draw HPDI region for line
+shade( mu.HPDI , weight.seq )
+
+# draw PI region for simulated heights
+shade( height.PI , weight.seq )
+
+# here we see more evidence that a model that moved beyond a single straight line 
+# would be more effective
 
 """
 3. Plot the prior predictive distribution for the polynomial regression model in Chapter 4. 
