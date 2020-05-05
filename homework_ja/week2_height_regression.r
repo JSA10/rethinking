@@ -304,7 +304,8 @@ line, then this is the most plausible line, and these are its plausible bounds.
 
 # simulate heights 
 ## R code 4.59
-sim.height <- sim( m_h_w.ln , data=list(weight=weight.seq) )
+sim.height <- sim( m_h_w.ln , data=list(weight=weight.seq), n = 1e4 )
+# increasing n just smoothes out the edges on the shaded region
 str(sim.height)
 
 # summarise these simulated actual heights the same way we summarised the average heights 
@@ -331,7 +332,7 @@ shade( height.PI , weight.seq )
 """
 3. Plot the prior predictive distribution for the polynomial regression model in Chapter 4. 
 You can modify the the code that plots the linear regression prior predictive 
-distribution. 20 or 30 parabolas from the prior should suf- fice to show where
+distribution. 20 or 30 parabolas from the prior should suffice to show where
 the prior probability resides. Can you modify the prior distributions of α, 
 β1, and β2 so that the prior predictions stay within the biologically reasonable
 outcome space? That is to say: Do not try to fit the data by hand. But do try to
@@ -339,6 +340,79 @@ keep the curves consistent with what you know about height and weight, before
 seeing these exact data.
 """
 
+# book example uses full howells data set 
+str(d)
 
+# as we saw in the last Q - the relationship between height and weight, once 
+# you add all the data (children and adults) is visibly curved
+plot(height ~ weight, data = d)
+
+# see notes in rethinking_regression_week2.r for the polynomial regression model.
+# Need to take this model but then go back through chapter 4 to find process 
+# for constructing prior predictive distribution for linear model and replicate 
+# for polynomial
+
+# WARNING from the book: 
+#   Fitting polynomial models to the data is easy, interpreting them is hard
+
+# step 1 - standardise predictors
+d$weight_s <- ( d$weight - mean(d$weight) )/sd(d$weight)
+
+# going to implement the second polynomial model from the book - a higher order 
+# polynomial with a parabolic (squared) and cubed weight predictor variable. 
+
+# use newly standardised variable...
+# ... to create squared predictor
+d$weight_s2 <- d$weight_s^2
+# ... to create cubed predictor
+d$weight_s3 <- d$weight_s^3
+
+
+# step 2 - define the model 
+# - just modify the definition of mu[i] and add priors
+m4.6 <- quap(
+    alist(
+        height ~ dnorm( mu , sigma ) ,
+        mu <- a + b1*weight_s + b2*weight_s2 + b3*weight_s3 ,
+        a ~ dnorm( 178 , 20 ) ,
+        b1 ~ dlnorm( 0 , 1 ) ,
+        b2 ~ dnorm( 0 , 1 ) ,
+        b3 ~ dnorm( 0 , 1 ) ,
+        sigma ~ dunif( 0 , 50 )
+    ), data=d )
+## ** investigate if a typo in the book is flagged - code 4.69 has 
+## b2/b3 ~ dnorm( 0 , *10* ) 
+
+
+# step 3 simulate prior predictive simulation 
+# - we want to understand better the impact of these prior distributions on a 
+# joint prior distribution of individual heights (predicted without seeing data) 
+
+# NOTE: I recreated code to create prior simulations from page 97 initially. 
+# 
+# The below is adpated from the answer sheet (i've added the cubic polynomial predictor) 
+# and shows a simpler way to create priors using rethinking extract.prior function 
+# and good old 'link'
+
+# extract the prior 
+set.seed(45)
+prior <- extract.prior(m4.6)
+precis(prior)
+# shows summary stats for each prior and visualises each in a histogram
+
+# now want to simulate curves (parabolas) from this prior. One way is to use link. 
+# Then won't have to write linear model again. 
+
+w_seq <- seq( from=min(d$weight_s) , to=max(d$weight_s) ,
+              length.out=50 )
+w2_seq <- w_seq^2 
+w3_seq <- w_seq^3
+mu <- link( m4.6 , post=prior ,
+            data=list( weight_s = w_seq , weight_s2 = w2_seq, weight_s3 = w3_seq) )
+
+# plot first 50 of mu's 1000 parabolas
+plot( NULL , xlim=range(w_seq) , ylim=c(55,270) ,
+      xlab="weight (std)" , ylab="height" )
+for (i in 1:50) lines(w_seq, mu[i, ], col = col.alpha("black", 0.5))
 
 

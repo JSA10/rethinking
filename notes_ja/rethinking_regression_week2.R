@@ -325,3 +325,159 @@ plot(d2$height, d2$weight)
 
 ## linear model strategy 
 
+
+
+
+# Polynomial regression ---------------------------------------------------
+
+# 4.5.1 in the book 
+
+# practise of using powers of a variable (squares and cubes) as extra predictors
+# + easy way to build curved associations 
+# - hghly constraining 
+# - does strange things outside the range of observed values
+
+# book example uses full howells data set 
+str(d)
+
+# as we saw in the last Q - the relationship between height and weight, once 
+# you add all the data (children and adults) is visibly curved
+plot(height ~ weight, data = d)
+
+# most common polynomial regression is a parabolic model of the mean: 
+
+# mu[i] = alpha + Beta[1]x[i] + Beta[2]x[i]^2 
+# -> a parabolic (second order) polynomial
+# the new paramater measures the curvature of the relationship
+
+# WARNING: Fitting these models to the data is easy, interpreting them is hard
+
+# step 1 - standardise predictors
+# even more important for polynomical models as numerical glitches in almost all 
+# statistical software can occur when working with very large numbers
+d$weight_s <- ( d$weight - mean(d$weight) )/sd(d$weight)
+
+# use newly standardised variable to create squared predictor
+d$weight_s2 <- d$weight_s^2
+
+# step 2 - define the model 
+# - just modify the definition of mu[i] 
+
+m4.5 <- quap(
+    alist(
+        height ~ dnorm( mu , sigma ) ,
+        mu <- a + b1*weight_s + b2*weight_s2 ,
+        a ~ dnorm( 178 , 20 ) ,
+        b1 ~ dlnorm( 0 , 1 ) ,
+        b2 ~ dnorm( 0 , 1 ) ,
+        sigma ~ dunif( 0 , 50 )
+    ) ,
+    data=d )
+
+# confusing thing here is assigning a prior for b2. Unlike b1 we don't want a 
+# positive constraint. 
+
+"""
+Now, since the relationship between the outcome height and the predictor weight 
+depends upon two slopes, b1 and b2, it isn’t so easy to read the relationship 
+off a table of coefficients:
+"""
+
+precis(m4.5)
+# parameter alpha is still the intercept = expected value of height when weight 
+# is at its mean value, BUT it is no longer equal to the mean height in the sample, 
+# since there is no guarantee it should in a polynomial regression.  
+
+# Beta1 = linear component of the curve
+# Beta2 = square component of the curve
+
+# This doesn't make transparent - need to plot 
+
+
+# plot polynomial model fits 
+
+# calculate mean relationship and 89% intervals of mean and the predictions
+## R code 4.67
+weight.seq <- seq( from=-2.2 , to=2 , length.out=30 )
+pred_dat <- list( weight_s=weight.seq , weight_s2=weight.seq^2 )
+mu <- link( m4.5 , data=pred_dat )
+mu.mean <- apply( mu , 2 , mean )
+mu.PI <- apply( mu , 2 , PI , prob=0.89 )
+sim.height <- sim( m4.5 , data=pred_dat )
+height.PI <- apply( sim.height , 2 , PI , prob=0.89 )
+
+# plot the above  
+## R code 4.68
+plot( height ~ weight_s , d , col=col.alpha(rangi2,0.5) )
+lines( weight.seq , mu.mean )
+shade( mu.PI , weight.seq )
+shade( height.PI , weight.seq )
+
+
+
+# higher order polynomial -------------------------------------------------
+
+# we can possibly improve the parabolic models predictions at the extremities of 
+# the data with a cubic regression on weight
+
+# just a slight modification required: 
+
+d$weight_s3 <- d$weight_s^3
+m4.6 <- quap(
+    alist(
+        height ~ dnorm( mu , sigma ) ,
+        mu <- a + b1*weight_s + b2*weight_s2 + b3*weight_s3 ,
+        a ~ dnorm( 178 , 20 ) ,
+        b1 ~ dlnorm( 0 , 1 ) ,
+        b2 ~ dnorm( 0 , 10 ) ,
+        b3 ~ dnorm( 0 , 10 ) ,
+        sigma ~ dunif( 0 , 50 )
+    ), data=d )
+
+# plot cubic polynomial model fits 
+
+# calculate mean relationship and 89% intervals of mean and the predictions
+weight.seq <- seq( from=-2.2 , to=2 , length.out=30 )
+pred_dat <- list( weight_s=weight.seq , weight_s2=weight.seq^2, weight_s3=weight.seq^3 )
+mu <- link( m4.6 , data=pred_dat )
+mu.mean <- apply( mu , 2 , mean )
+mu.PI <- apply( mu , 2 , PI , prob=0.89 )
+sim.height <- sim( m4.6 , data=pred_dat )
+height.PI <- apply( sim.height , 2 , PI , prob=0.89 )
+
+# plot the above  
+## R code 4.68
+plot( height ~ weight_s , d , col=col.alpha(rangi2,0.5) )
+lines( weight.seq , mu.mean )
+shade( mu.PI , weight.seq )
+shade( height.PI , weight.seq )
+
+"""
+ This cubic curve is even more flexible than the parabola, so it fits the data even better.
+
+But it’s not clear that any of these models make a lot of sense. 
+They are good geocentric descriptions of the sample, yes. 
+
+But there are two clear problems. 
+
+First, a better fit to the sample might not actually be a better model. 
+That’s the subject of Chapter 7. 
+
+Second, the model contains no biological information, so we aren’t learning 
+anything about any causal relationship between height and weight. We’ll deal 
+with this second problem much later in the book, in Chapter 16.
+"""
+
+
+# plot on natural scale ---------------------------------------------------
+
+# turn off horizontal axis when you plot the raw data
+plot( height ~ weight_s , d , col=col.alpha(rangi2,0.5) , xaxt="n" )
+"""
+The xaxt at the end there turns off the horizontal axis. Then you explicitly 
+construct the axis, using the axis function.
+"""
+at <- c(-2,-1,0,1,2)
+labels <- at*sd(d$weight) + mean(d$weight)
+axis( side=1 , at=at , labels=round(labels,1) )
+

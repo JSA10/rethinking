@@ -87,3 +87,52 @@ curve( dnorm( x , 178 , 20 ) , from=100 , to=250 )
 
 
 
+
+
+# 1st stab at Q3 in week 2 homework  --------------------------------------
+
+# theres is a simpler way to create prior predictive siumulations using 
+# extract.samples from the model and link functions
+
+# earlier in chapter 4 we saw how to simulate the alpha and sigma priors 
+
+# visualise 
+# sample_mu (alpha)
+curve( dnorm( x , 178 , 20 ) , from=100 , to=250 )
+# sample_sigma
+curve( dunif( x , 0 , 50 ) , from=-10 , to=60 )
+# sample_beta
+curve( dlnorm( x , 0 , 1 ) , from=-5 , to=5 )
+# sample_beta_2+3
+curve( dnorm( x , 0 , 1 ) , from=-5 , to=5 )
+
+# to simulate - we need to plot lots of lines - the lines implied by our paramaters 
+# for intercept and slope 
+
+
+# sample from the prior using same way of sampling from posterior
+set.seed(10)
+N <- 100
+a <- rnorm( N , 178 , 20 )
+sigma <- runif( N , 0 , 50 )
+b1 <- rlnorm(N, 0, 1)
+b2 <- rnorm(N, 0, 1)
+b3 <- rnorm(N, 0, 1)
+
+# using range of existing x (weight) values to plot on 
+plot( NULL , xlim=range(d$weight) , ylim=c(-100,400) ,
+      xlab="weight" , ylab="height" )
+# add biologically relevant limits
+abline( h=0 , lty=2 )
+abline( h=272 , lty=1 , lwd=0.5 )
+
+mtext( "polynomial" )
+xbar <- mean(d$weight_s)
+x2bar <- mean(d$weight_s2)
+x3bar <- mean(d$weight_s3)
+
+for ( i in 1:N ) curve( a[i] + b1[i]*(x - xbar) + b2[i]*(x^2 - x2bar) + b2[i]*(x^3 - x3bar) ,
+                        from=min(d$weight) , to=max(d$weight) , add=TRUE ,
+                        col=col.alpha("black",0.2) )
+# these curves seem pretty out there 
+
